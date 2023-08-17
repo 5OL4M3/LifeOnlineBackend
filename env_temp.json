@@ -1,0 +1,7 @@
+{
+    "user": "USERNAME",
+    "host": "localhost",
+    "database": "lifeonline",
+    "password": "PASSWORD",
+    "port": 5432
+}
