@@ -2,7 +2,7 @@
 
 const { login, signup } = require("../controllers/authentication.js");
 
-const {Router} = require('express');
+const { Router } = require('express');
 const router = Router();
 
 router.post("/login", login);

@@ -1,6 +1,6 @@
 //Routes for todo-list application
 
-const {Router} = require('express');
+const { Router } = require('express');
 
 const router = Router();
 
