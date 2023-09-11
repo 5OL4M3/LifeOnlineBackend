@@ -5,7 +5,7 @@ const db = require(`../db/index.js`);
 const saltRounds = 10;
 const crypto = require("crypto");
 
-let tokenStorage = {}
+let tokenStorage = {};
 
 let cookieOptions = {
   httpOnly: true,
@@ -43,14 +43,13 @@ const login = async (req, res) => {
 
   try {
     let token = crypto.randomBytes(32).toString("hex");
-    tokenStorage[token] = username;
+    tokenStorage[token] = {"username": username, "isAdmin": false, "loginAttempts": 0};
     return res.cookie("Token", token, cookieOptions).send("Successful Login");
   
   } catch (err){
     console.log(err);
     return res.status(500).send("Failed to create session id");
   }
-
 };
 
 const signup = async (req, res) => {
@@ -70,7 +69,7 @@ const signup = async (req, res) => {
 
   if (username.length <= 8 || password.length < 12){
     return res.status(400).send("Inputs not long enough");
-  }
+  };
 
   try {
     let result = await db.oneOrNone(`SELECT * FROM users WHERE username = $1`, [username]);
@@ -100,7 +99,11 @@ const signup = async (req, res) => {
     console.log(err);
     return res.status(500).send("Could not add user");
   };
-
 };
 
-module.exports = { login, signup };
+const logout = async (req, res) => {
+  let body = req.body;
+  return res.send("Good")
+};
+
+module.exports = { login, signup, logout };
