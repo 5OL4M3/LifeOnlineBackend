@@ -1,9 +1,9 @@
 //Controller for authentication application
-const validator = require("email-validator");
 const bcrypt = require('bcrypt');
-const db = require(`../db/index.js`);
-const saltRounds = 10;
+const { postgres, redis }= require(`../db/index.js`);
+const saltRounds = 12;
 const crypto = require("crypto");
+const { isValidSignup } = require("../util/authentication.utils.js")
 
 let tokenStorage = {};
 
@@ -20,10 +20,10 @@ const login = async (req, res) => {
     return res.status(400).send("Empty Input"); 
   };
 
-  let hashedpassword;
+  let hashedPassword;
   try {
-    let res = await db.one(`SELECT hashedpassword FROM users WHERE username = $1`, [username]);
-    hashedpassword = res.hashedpassword;
+    let res = await postgres.one(`SELECT hashedpassword FROM users WHERE username = $1`, [username]);
+    hashedPassword = res.hashedpassword;
 
   } catch (err){
     console.log(err);
@@ -31,7 +31,7 @@ const login = async (req, res) => {
   };
 
   try {
-    let match = await bcrypt.compare(password, hashedpassword);
+    let match = await bcrypt.compare(password, hashedPassword);
     if (!match){
       return res.status(400).send("Incorrect Password");
     };
@@ -53,34 +53,41 @@ const login = async (req, res) => {
 };
 
 const signup = async (req, res) => {
-  let { firstName, lastName, email, username, password, re_enterPassword } = req.body;
 
-  if (firstName === "" || lastName === "" || email === "" || username === "" || password === "" || re_enterPassword === ""){
-    return res.status(400).send("Empty input");
-  };
+  let { isValid, Msg } = JSON.parse(isValidSignup(req.body));
+  // console.log(isValid);
+  // console.log(Msg);
+  if (!isValid){
+    return res.status(400).send(Msg);
+  }
 
-  if (!validator.validate(email)){
-    return res.status(400).send("Not a valid Email");
-  };
+  let { email, username, password } = req.body;
+  // console.log(req.headers);
 
-  if (password !== re_enterPassword){
-    return res.status(400).send("Passwords do not match");
-  };
-
-  if (username.length <= 8 || password.length < 12){
-    return res.status(400).send("Inputs not long enough");
-  };
-
+  // Check if email already used by another user
   try {
-    let result = await db.oneOrNone(`SELECT * FROM users WHERE username = $1`, [username]);
+    let result = await postgres.any(`SELECT * FROM users WHERE email = $1`, [email]);
     if (result !== null){
-      return res.status(500).send("Username Already exists")
+      return res.status(400).send("Email is already in use")
     };
 
   } catch (err) {
     console.log(err);
     return res.status(500).send("Something went wrong with the database")
   };
+
+  // Check if username is already being used
+  try {
+    let result = await postgres.any(`SELECT * FROM users WHERE username = $1`, [username]);
+    if (result !== null){
+      return res.status(400).send("Username Already exists")
+    };
+
+  } catch (err) {
+    console.log(err);
+    return res.status(500).send("Something went wrong with the database")
+  };
+
 
   let hashPassword;
   try {
@@ -92,7 +99,7 @@ const signup = async (req, res) => {
   };
 
   try {
-    let response = await db.any(`INSERT INTO users (firstname, lastname, email, username, hashedpassword) VALUES ($1, $2, $3, $4, $5) RETURNING *`, [firstName, lastName, email, username, hashPassword]);
+    let response = await postgres.any(`INSERT INTO users (firstname, lastname, email, username, hashedpassword) VALUES ($1, $2, $3, $4, $5) RETURNING *`, [firstName, lastName, email, username, hashPassword]);
     return res.send(response);
 
   } catch (err){
@@ -102,8 +109,16 @@ const signup = async (req, res) => {
 };
 
 const logout = async (req, res) => {
-  let body = req.body;
-  return res.send("Good")
+  let { token } = req.cookies;
+
+  if (token === undefined) {
+      return res.status(400).send("already logged out");
+  }
+  if (!tokenStorage.hasOwnProperty(token)) {
+      return res.status(400).send("Token Does not exist");
+  }
+  delete tokenStorage[token];
+  return res.clearCookie("token", cookieOptions)
 };
 
 module.exports = { login, signup, logout };
